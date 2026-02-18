@@ -1,31 +1,35 @@
 import socket
+from f1_2019_telemetry.packets import unpack_udp_packet
 
-def debug_connection():
-    # Use your ACTUAL IP here from ipconfig
-    YOUR_IP = "0.0.0.0" 
-    PORT = 20777
-    
-    print(f"--- HARDWARE DEBUG ---")
-    print(f"Listening on: {YOUR_IP}:{PORT}")
-    
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind((YOUR_IP, PORT))
-        sock.settimeout(15) # Wait 15 seconds
-        
-        print("STATUS: Socket bound successfully. Waiting for game packets...")
-        print("ACTION: Start driving on the track NOW.")
-        
-        data, addr = sock.recvfrom(2048)
-        print(f"SUCCESS! Received {len(data)} bytes from {addr}")
-        
-    except PermissionError:
-        print("ERROR: Windows is denying permission to use this port.")
-    except OSError as e:
-        print(f"ERROR: Port conflict? {e}")
-    except socket.timeout:
-        print("ERROR: Timeout. The game is simply NOT sending data to this IP.")
-    finally:
-        sock.close()
+# Using '' or '0.0.0.0' allows us to catch broadcasted data
+UDP_IP = '' 
+UDP_PORT = 20777
 
-debug_connection()
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# This tells Windows to allow multiple 'listeners' and handle broadcast traffic
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+sock.bind((UDP_IP, UDP_PORT))
+sock.settimeout(15)
+
+print(f"Listening for BROADCAST data on port {UDP_PORT}...")
+print("ACTION: Go drive on the track now!")
+
+try:
+    data, addr = sock.recvfrom(2048)
+    print(f"!!! SUCCESS !!! Data caught from {addr}")
+    
+    packet = unpack_udp_packet(data)
+    if packet.header.packetId == 6:
+        print(f"Confirmed: Car Telemetry packet received.")
+    else:
+        print(f"Received Packet ID: {packet.header.packetId}")
+
+except socket.timeout:
+    print("FAILED: No broadcast data detected. Is your Ethernet set to 'Private'?")
+except Exception as e:
+    print(f"ERROR: {e}")
+finally:
+    sock.close()
