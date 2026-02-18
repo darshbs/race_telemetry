@@ -1,28 +1,31 @@
 import socket
 
-def scan_for_game():
-    # We create a socket that listens to EVERYTHING
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def debug_connection():
+    # Use your ACTUAL IP here from ipconfig
+    YOUR_IP = "0.0.0.0" 
+    PORT = 20777
+    
+    print(f"--- HARDWARE DEBUG ---")
+    print(f"Listening on: {YOUR_IP}:{PORT}")
     
     try:
-        sock.bind(("", 20777))
-        sock.settimeout(15) # We will wait 15 seconds
-        print("--- SCANNING FOR GAME TRAFFIC ---")
-        print("1. Ensure F1 2019 is running.")
-        print("2. Ensure you are actually DRIVING the car.")
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((YOUR_IP, PORT))
+        sock.settimeout(15) # Wait 15 seconds
         
-        data, addr = sock.recvfrom(1024)
-        print(f"\n[!!!] DATA DETECTED!")
-        print(f"The game is sending data from: {addr}")
-        print(f"Packet Size: {len(data)} bytes")
-        return True
+        print("STATUS: Socket bound successfully. Waiting for game packets...")
+        print("ACTION: Start driving on the track NOW.")
+        
+        data, addr = sock.recvfrom(2048)
+        print(f"SUCCESS! Received {len(data)} bytes from {addr}")
+        
+    except PermissionError:
+        print("ERROR: Windows is denying permission to use this port.")
+    except OSError as e:
+        print(f"ERROR: Port conflict? {e}")
     except socket.timeout:
-        print("\n[X] STILL FAILED: No traffic detected on Port 20777.")
-        print("Check if F1 2019 > Telemetry Settings > UDP Telemetry is 'ON'.")
-        return False
+        print("ERROR: Timeout. The game is simply NOT sending data to this IP.")
     finally:
         sock.close()
 
-scan_for_game()
-
-New-NetFirewallRule -DisplayName "F1 Telemetry Fix" -Direction Inbound -LocalPort 20777 -Protocol UDP -Action Allow
+debug_connection()
