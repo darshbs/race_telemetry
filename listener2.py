@@ -1,55 +1,51 @@
 import socket
 import csv
-import os
+import time
 from f1_2019_telemetry.packets import unpack_udp_packet
 
-# --- Configuration ---
+# Listen on all available interfaces
 UDP_IP = "0.0.0.0"
 UDP_PORT = 20777
 FILENAME = "f1_2019_telemetry.csv"
 
-# Define the CSV Header
-HEADER = ["Timestamp", "Speed", "Gear", "RPM", "Throttle", "Brake"]
-
-# Setup the UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# This line helps if another program recently used the port
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 sock.bind((UDP_IP, UDP_PORT))
+sock.settimeout(1.0) # Check for data every second
 
-print(f"Recording to {FILENAME}. Press Ctrl+C to stop.")
+print(f"--- F1 2019 Logger Started ---")
+print(f"Listening on Port: {UDP_PORT}")
+print(f"Writing to: {FILENAME}")
+print("ACTION: You must be driving on the track to see data!")
 
-# Open the file in append mode
-with open(FILENAME, mode='w', newline='') as file:
+with open(FILENAME, mode='w', newline='', buffering=1) as file:
     writer = csv.writer(file)
-    writer.writerow(HEADER)  # Write the header first
+    writer.writerow(["Timestamp", "Speed", "Gear", "RPM", "Throttle", "Brake"])
 
+    last_heartbeat = time.time()
+    
     try:
         while True:
-            data, addr = sock.recvfrom(2048)
-            packet = unpack_udp_packet(data)
+            try:
+                data, addr = sock.recvfrom(2048)
+                packet = unpack_udp_packet(data)
 
-            # ID 6 is Car Telemetry
-            if packet.header.packetId == 6:
-                player_idx = packet.header.playerCarIndex
-                player_data = packet.carTelemetryData[player_idx]
+                if packet.header.packetId == 6:
+                    p = packet.carTelemetryData[packet.header.playerCarIndex]
+                    writer.writerow([packet.header.sessionTime, p.speed, p.gear, p.engineRPM, p.throttle, p.brake])
+                    # Force write to disk
+                    file.flush()
+                    
+                    print(f" [DATA] Time: {packet.header.sessionTime:.1f} | Speed: {p.speed} km/h  ", end='\r')
 
-                # Prepare the row data
-                # header.sessionTime is the time in seconds since the session started
-                row = [
-                    packet.header.sessionTime,
-                    player_data.speed,
-                    player_data.gear,
-                    player_data.engineRPM,
-                    player_data.throttle,
-                    player_data.brake
-                ]
-
-                # Write to CSV
-                writer.writerow(row)
-                
-                # Optional: print to console every few packets to see progress
-                print(f"Captured: Time {packet.header.sessionTime:.2f}s | Speed {player_data.speed}", end='\r')
+            except socket.timeout:
+                # This runs if no data came in for 1 second
+                if time.time() - last_heartbeat > 2:
+                    print(f" [WAITING] Script is alive, but no game data... ({time.strftime('%H:%M:%S')})", end='\r')
+                    last_heartbeat = time.time()
 
     except KeyboardInterrupt:
-        print(f"\nRecording stopped. Data saved to {FILENAME}")
+        print(f"\nStopped by user. Data saved to {FILENAME}")
     finally:
         sock.close()
