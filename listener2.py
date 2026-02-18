@@ -1,35 +1,55 @@
 import socket
+import csv
+import os
 from f1_2019_telemetry.packets import unpack_udp_packet
 
-# Configure the socket
-UDP_IP = "0.0.0.0" # Listen on all interfaces
+# --- Configuration ---
+UDP_IP = "0.0.0.0"
 UDP_PORT = 20777
+FILENAME = "f1_2019_telemetry.csv"
 
+# Define the CSV Header
+HEADER = ["Timestamp", "Speed", "Gear", "RPM", "Throttle", "Brake"]
+
+# Setup the UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((UDP_IP, UDP_PORT))
 
-print(f"Listening for F1 2019 telemetry on port {UDP_PORT}...")
+print(f"Recording to {FILENAME}. Press Ctrl+C to stop.")
 
-try:
-    while True:
-        # Receive the raw binary data
-        data, addr = sock.recvfrom(2048)
-        
-        # Unpack the packet into a Python object
-        packet = unpack_udp_packet(data)
-        
-        # Packet ID 6 is Car Telemetry (Speed, Gear, RPM, etc.)
-        if packet.header.packetId == 6:
-            # Index 0 is usually the player's car
-            player_car = packet.carTelemetryData[packet.header.playerCarIndex]
-            
-            speed = player_car.speed
-            gear = player_car.gear
-            revs = player_car.engineRPM
-            
-            print(f"Speed: {speed} km/h | Gear: {gear} | RPM: {revs}", end='\r')
+# Open the file in append mode
+with open(FILENAME, mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(HEADER)  # Write the header first
 
-except KeyboardInterrupt:
-    print("\nStopping telemetry stream...")
-finally:
-    sock.close()
+    try:
+        while True:
+            data, addr = sock.recvfrom(2048)
+            packet = unpack_udp_packet(data)
+
+            # ID 6 is Car Telemetry
+            if packet.header.packetId == 6:
+                player_idx = packet.header.playerCarIndex
+                player_data = packet.carTelemetryData[player_idx]
+
+                # Prepare the row data
+                # header.sessionTime is the time in seconds since the session started
+                row = [
+                    packet.header.sessionTime,
+                    player_data.speed,
+                    player_data.gear,
+                    player_data.engineRPM,
+                    player_data.throttle,
+                    player_data.brake
+                ]
+
+                # Write to CSV
+                writer.writerow(row)
+                
+                # Optional: print to console every few packets to see progress
+                print(f"Captured: Time {packet.header.sessionTime:.2f}s | Speed {player_data.speed}", end='\r')
+
+    except KeyboardInterrupt:
+        print(f"\nRecording stopped. Data saved to {FILENAME}")
+    finally:
+        sock.close()
