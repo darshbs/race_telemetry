@@ -1,30 +1,35 @@
 import socket
+from f1_2019_telemetry.packets import unpack_udp_packet
 
-# Bind to ALL interfaces
-UDP_IP = "0.0.0.0" 
+# Configure the socket
+UDP_IP = "0.0.0.0" # Listen on all interfaces
 UDP_PORT = 20777
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# This command allows the port to be reused if it was stuck open
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+sock.bind((UDP_IP, UDP_PORT))
+
+print(f"Listening for F1 2019 telemetry on port {UDP_PORT}...")
 
 try:
-    sock.bind((UDP_IP, UDP_PORT))
-    print(f"RADIO CHECK! LISTENING ON ALL IPS (0.0.0.0) PORT {UDP_PORT}")
-    print("1. Make sure you are DRIVING (Time Trial), not in the menu.")
-    print(f"2. Make sure Game Settings UDP IP is your PC IP (e.g., 192.168.x.x)")
-    
-    sock.settimeout(2.0)
-
     while True:
-        try:
-            data, addr = sock.recvfrom(4096)
-            print(f"SUCCESS! Connected to {addr[0]} - Packet Size: {len(data)}")
-        except TimeoutError:
-            pass
+        # Receive the raw binary data
+        data, addr = sock.recvfrom(2048)
+        
+        # Unpack the packet into a Python object
+        packet = unpack_udp_packet(data)
+        
+        # Packet ID 6 is Car Telemetry (Speed, Gear, RPM, etc.)
+        if packet.header.packetId == 6:
+            # Index 0 is usually the player's car
+            player_car = packet.carTelemetryData[packet.header.playerCarIndex]
             
-except OSError as e:
-    print(f"ERROR: {e}")
-    print("This usually means another app (SimHub, CrewChief?) is already using Port 20777.")
+            speed = player_car.speed
+            gear = player_car.gear
+            revs = player_car.engineRPM
+            
+            print(f"Speed: {speed} km/h | Gear: {gear} | RPM: {revs}", end='\r')
+
 except KeyboardInterrupt:
-    print("\nStopped.")
+    print("\nStopping telemetry stream...")
+finally:
+    sock.close()
