@@ -1,55 +1,30 @@
 import socket
-import struct
 
-UDP_IP = "0.0.0.0" # Listen on all available interfaces
+# Bind to ALL interfaces
+UDP_IP = "0.0.0.0" 
 UDP_PORT = 20777
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind((UDP_IP, UDP_PORT))
-sock.settimeout(1.0) 
-
-print("F1 2019 Listener Active. Drive out of the garage!")
-
-# F1 2019 Car Telemetry format is slightly different than 2025
-# It is 66 bytes per car (not 60) in the 2019 structure.
-TELEMETRY_FORMAT = "<HfffBbHBBH4H4B4BH4f4B" 
+# This command allows the port to be reused if it was stuck open
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 try:
+    sock.bind((UDP_IP, UDP_PORT))
+    print(f"LISTENING ON ALL IPS (0.0.0.0) PORT {UDP_PORT}")
+    print("1. Make sure you are DRIVING (Time Trial), not in the menu.")
+    print(f"2. Make sure Game Settings UDP IP is your PC IP (e.g., 192.168.x.x)")
+    
+    sock.settimeout(2.0)
+
     while True:
         try:
-            data, addr = sock.recvfrom(2048)
-            
-            # F1 2019 Header is only 23 bytes!
-            if len(data) >= 23:
-                # In F1 2019, Packet ID is at index 5 (6th byte)
-                packet_id = data[5]
-                
-                # Packet ID 6 is Car Telemetry
-                if packet_id == 6:
-                    # In F1 2019, the player index is usually 0 in Time Trial, 
-                    # but we can read it from the header at index 3
-                    player_index = data[3]
-                    
-                    # Header is 23 bytes. Each car telemetry block is 66 bytes.
-                    offset = 23 + (player_index * 66)
-                    
-                    # Grab speed (km/h)
-                    # The format for 2019 speed is usually the first value (u16)
-                    speed = struct.unpack_from("<H", data, offset)[0]
-                    
-                    # Grab throttle (float) - Offset + 2 bytes
-                    throttle = struct.unpack_from("<f", data, offset + 2)[0]
-                    
-                    # Grab steer (float) - Offset + 6 bytes
-                    steer = struct.unpack_from("<f", data, offset + 6)[0]
-                    
-                    # Grab brake (float) - Offset + 10 bytes
-                    brake = struct.unpack_from("<f", data, offset + 10)[0]
-
-                    print(f"Speed: {speed} | Throttle: {throttle:.2f} | Brake: {brake:.2f}", end='\r')
-            
+            data, addr = sock.recvfrom(4096)
+            print(f"SUCCESS! Connected to {addr[0]} - Packet Size: {len(data)}")
         except TimeoutError:
             pass
-#comment
+            
+except OSError as e:
+    print(f"ERROR: {e}")
+    print("This usually means another app (SimHub, CrewChief?) is already using Port 20777.")
 except KeyboardInterrupt:
     print("\nStopped.")
