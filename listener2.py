@@ -10,7 +10,7 @@ sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 try:
     sock.bind((UDP_IP, UDP_PORT))
-    print(f"LISTENING ON ALL IPS (0.0.0.0) PORT {UDP_PORT}")
+    print(f"RADIO CHECK! LISTENING ON ALL IPS (0.0.0.0) PORT {UDP_PORT}")
     print("1. Make sure you are DRIVING (Time Trial), not in the menu.")
     print(f"2. Make sure Game Settings UDP IP is your PC IP (e.g., 192.168.x.x)")
     
